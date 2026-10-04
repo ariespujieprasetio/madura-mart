@@ -1,0 +1,4 @@
+'use client';
+import Link from 'next/link'; import { usePathname } from 'next/navigation'; import { createClient } from '@/lib/supabase/client';
+const items=[['/dashboard','Beranda'],['/products','Produk'],['/inventory','Stok'],['/pos','Kasir']];
+export function AppNav(){const path=usePathname();async function logout(){await createClient().auth.signOut();location.href='/login'}return <nav className="sticky top-0 z-20 flex items-center gap-2 overflow-x-auto border-b bg-white px-4 py-3"><Link href="/dashboard" className="mr-4 font-serif text-xl">Warung<span className="text-gold">Ku</span></Link>{items.map(([href,label])=><Link key={href} href={href} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm ${path===href?'bg-charcoal text-white':'hover:bg-black/5'}`}>{label}</Link>)}<button onClick={logout} className="ml-auto rounded-lg border px-3 py-2 text-sm">Keluar</button></nav>}

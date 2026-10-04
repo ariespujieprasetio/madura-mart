@@ -1,0 +1,2 @@
+export const rolePermissions={SUPER_ADMIN:['*'],OWNER:['tenant:read','tenant:write','branch:write','users:write','reports:read'],MANAGER:['products:write','inventory:write','sales:write','reports:read'],CASHIER:['pos:write','shift:write']} as const;
+export function can(role:keyof typeof rolePermissions, permission:string){const list=rolePermissions[role]; return list.includes('*' as never)||list.includes(permission as never)}
