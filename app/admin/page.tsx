@@ -1,14 +1,86 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { AppNav } from '@/components/AppNav';
-/* Live platform data will be connected after super-admin RLS is enabled. */
+import { createClient } from '@/lib/supabase/client';
+import { isAdminRole } from '@/lib/permissions';
+
 const branches: {name:string;owner:string;sales:number;status:string}[] = [];
-
 const plans: {name:string;price:string;seats:string}[] = [];
-
 const activity: string[] = [];
-
 const cashFlow = { endingCash: 0, netCash: 0, marginPercent: 0 };
 
 export default function AdminPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkAccess = async () => {
+      try {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+
+        if (!userData.user) {
+          if (active) {
+            setAuthorized(false);
+            setLoading(false);
+          }
+          return;
+        }
+
+        const { data } = await supabase
+          .from('tenant_users')
+          .select('role')
+          .eq('user_id', userData.user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (active) {
+          setAuthorized(isAdminRole(data?.role ?? null));
+          setLoading(false);
+        }
+      } catch {
+        if (active) {
+          setAuthorized(false);
+          setLoading(false);
+        }
+      }
+    };
+
+    checkAccess();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <>
+        <AppNav />
+        <main className="min-h-screen bg-[#f6f2ea] p-4 md:p-6">
+          <div className="mx-auto max-w-7xl text-sm text-charcoal/60">Memeriksa akses admin...</div>
+        </main>
+      </>
+    );
+  }
+
+  if (!authorized) {
+    return (
+      <>
+        <AppNav />
+        <main className="min-h-screen bg-[#f6f2ea] p-4 md:p-6">
+          <div className="mx-auto max-w-2xl rounded-[24px] border border-red-200 bg-red-50 p-6 text-red-900">
+            <p className="text-sm uppercase tracking-[0.2em] text-red-700">Akses ditolak</p>
+            <h1 className="mt-3 text-3xl font-semibold">Halaman admin hanya untuk owner / super admin</h1>
+            <p className="mt-2 text-sm">Akun Anda belum punya izin untuk membuka panel administrasi.</p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <AppNav />

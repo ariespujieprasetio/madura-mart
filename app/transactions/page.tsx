@@ -4,11 +4,21 @@ import { useEffect, useState } from 'react';
 import { AppNav } from '@/components/AppNav';
 import { createClient } from '@/lib/supabase/client';
 
-const fallbackRecentSales: RecentSale[] = [];
 type RecentSale = { invoice: string; method: string; total: number; time: string };
+
+type SummaryMetric = {
+  label: string;
+  value: string;
+};
 
 export default function TransactionsPage() {
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
+  const [summary, setSummary] = useState<SummaryMetric[]>([
+    { label: 'Total Penjualan', value: 'Rp 0' },
+    { label: 'Jumlah Transaksi', value: '0' },
+    { label: 'Rata-rata', value: 'Rp 0' },
+    { label: 'Laba Kotor', value: 'Rp 0' },
+  ]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,6 +29,12 @@ export default function TransactionsPage() {
         if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
           if (active) {
             setRecentSales([]);
+            setSummary([
+              { label: 'Total Penjualan', value: 'Rp 0' },
+              { label: 'Jumlah Transaksi', value: '0' },
+              { label: 'Rata-rata', value: 'Rp 0' },
+              { label: 'Laba Kotor', value: 'Rp 0' },
+            ]);
             setLoading(false);
           }
           return;
@@ -30,6 +46,12 @@ export default function TransactionsPage() {
         if (userError || !userData.user) {
           if (active) {
             setRecentSales([]);
+            setSummary([
+              { label: 'Total Penjualan', value: 'Rp 0' },
+              { label: 'Jumlah Transaksi', value: '0' },
+              { label: 'Rata-rata', value: 'Rp 0' },
+              { label: 'Laba Kotor', value: 'Rp 0' },
+            ]);
             setLoading(false);
           }
           return;
@@ -45,6 +67,12 @@ export default function TransactionsPage() {
         if (!membership?.tenant_id) {
           if (active) {
             setRecentSales([]);
+            setSummary([
+              { label: 'Total Penjualan', value: 'Rp 0' },
+              { label: 'Jumlah Transaksi', value: '0' },
+              { label: 'Rata-rata', value: 'Rp 0' },
+              { label: 'Laba Kotor', value: 'Rp 0' },
+            ]);
             setLoading(false);
           }
           return;
@@ -69,11 +97,29 @@ export default function TransactionsPage() {
           }),
         }));
 
+        const totalSales = mapped.reduce((sum, row) => sum + row.total, 0);
+        const totalTransactions = mapped.length;
+        const avgTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+
         if (active) {
           setRecentSales(mapped);
+          setSummary([
+            { label: 'Total Penjualan', value: `Rp ${totalSales.toLocaleString('id-ID')}` },
+            { label: 'Jumlah Transaksi', value: `${totalTransactions}` },
+            { label: 'Rata-rata', value: `Rp ${avgTicket.toLocaleString('id-ID')}` },
+            { label: 'Laba Kotor', value: 'Rp 0' },
+          ]);
         }
       } catch {
-        if (active) setRecentSales([]);
+        if (active) {
+          setRecentSales([]);
+          setSummary([
+            { label: 'Total Penjualan', value: 'Rp 0' },
+            { label: 'Jumlah Transaksi', value: '0' },
+            { label: 'Rata-rata', value: 'Rp 0' },
+            { label: 'Laba Kotor', value: 'Rp 0' },
+          ]);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -100,15 +146,10 @@ export default function TransactionsPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-4">
-            {[
-              ['Total Penjualan', 'Rp 18.240.000'],
-              ['Jumlah Transaksi', '184'],
-              ['Rata-rata', 'Rp 99.130'],
-              ['Laba Kotor', 'Rp 3.760.000'],
-            ].map(([label, value]) => (
-              <div key={label} className="panel rounded-[22px] p-5">
-                <p className="text-sm text-charcoal/60">{label}</p>
-                <p className="mt-3 text-2xl font-semibold">{value}</p>
+            {summary.map((item) => (
+              <div key={item.label} className="panel rounded-[22px] p-5">
+                <p className="text-sm text-charcoal/60">{item.label}</p>
+                <p className="mt-3 text-2xl font-semibold">{item.value}</p>
               </div>
             ))}
           </div>
@@ -116,6 +157,11 @@ export default function TransactionsPage() {
           <div className="panel rounded-[24px] p-5">
             {loading ? (
               <p className="text-sm text-charcoal/60">Memuat riwayat transaksi...</p>
+            ) : recentSales.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-charcoal/15 bg-[#f8f3ed] p-8 text-center">
+                <p className="text-lg font-semibold text-charcoal">Belum ada transaksi</p>
+                <p className="mt-2 text-sm text-charcoal/60">Riwayat penjualan akan tampil otomatis setelah transaksi pertama selesai.</p>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">

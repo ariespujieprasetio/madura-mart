@@ -88,7 +88,7 @@ export default function OnboardingPage() {
     const memberResult = await createClient().from('tenant_users').insert({
       tenant_id: tenantResult.data.id,
       user_id: user.id,
-      role: 'OWNER',
+      role: 'SUPER_ADMIN',
       branch_id: branchResult.data.id,
       is_active: true,
     });
