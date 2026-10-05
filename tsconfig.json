@@ -15,9 +15,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "baseUrl": ".",
     "ignoreDeprecations": "6.0",
-    "paths": {"@/*": ["./*"]},
+    "paths": {
+      "@/*": ["./*"]
+    },
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
