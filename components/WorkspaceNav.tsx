@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, ShoppingBasket, ReceiptText, Boxes, Package, Truck, Users, ShoppingBag, Wallet, ChartNoAxesCombined, Settings, Store, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingBasket, ReceiptText, Boxes, Package, Truck, Users, ShoppingBag, Wallet, ChartNoAxesCombined, Settings, Store, Menu, X, LogOut, UserRound } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminRole } from '@/lib/permissions';
 
@@ -17,6 +17,7 @@ const groups = [
     { href: '/inventory', label: 'Persediaan', icon: Boxes },
     { href: '/suppliers', label: 'Supplier', icon: Truck },
     { href: '/customers', label: 'Pelanggan', icon: Users },
+    { href: '/profile', label: 'Profil', icon: UserRound },
   ] },
   { title: 'KEUANGAN', items: [
     { href: '/purchases', label: 'Pembelian', icon: ShoppingBag },

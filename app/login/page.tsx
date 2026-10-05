@@ -78,7 +78,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 rounded-2xl bg-charcoal/5 p-3 text-center text-sm text-charcoal/70">
-          Belum punya akun? <Link href="/register" className="font-semibold text-gold">Daftar gratis</Link>
+          Akses khusus untuk pengguna yang sudah terdaftar.
         </div>
       </div>
     </main>
