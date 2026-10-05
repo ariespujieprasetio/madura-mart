@@ -1,18 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { AppNav } from '@/components/AppNav';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminRole } from '@/lib/permissions';
 
-const branches: {name:string;owner:string;sales:number;status:string}[] = [];
-const plans: {name:string;price:string;seats:string}[] = [];
-const activity: string[] = [];
-const cashFlow = { endingCash: 0, netCash: 0, marginPercent: 0 };
-
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    tenantName: '',
+    branchName: 'Cabang Utama',
+    address: '',
+    whatsapp: '',
+    role: 'OWNER',
+  });
 
   useEffect(() => {
     let active = true;
@@ -20,9 +28,9 @@ export default function AdminPage() {
     const checkAccess = async () => {
       try {
         const supabase = createClient();
-        const { data: userData } = await supabase.auth.getUser();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
 
-        if (!userData.user) {
+        if (userError || !userData.user) {
           if (active) {
             setAuthorized(false);
             setLoading(false);
@@ -30,15 +38,17 @@ export default function AdminPage() {
           return;
         }
 
-        const { data } = await supabase
+        const { data: membershipData } = await supabase
           .from('tenant_users')
           .select('role')
           .eq('user_id', userData.user.id)
           .limit(1)
           .maybeSingle();
 
+        const isAdmin = isAdminRole(membershipData?.role ?? null);
+
         if (active) {
-          setAuthorized(isAdminRole(data?.role ?? null));
+          setAuthorized(isAdmin);
           setLoading(false);
         }
       } catch {
@@ -54,6 +64,70 @@ export default function AdminPage() {
       active = false;
     };
   }, []);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSaving(true);
+
+    try {
+      if (!form.fullName || !form.email || !form.password || !form.tenantName) {
+        setError('Nama lengkap, email, password, dan nama tenant wajib diisi.');
+        return;
+      }
+
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        setError('Sesi admin tidak valid. Silakan masuk ulang.');
+        return;
+      }
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          email: form.email,
+          password: form.password,
+          tenantName: form.tenantName,
+          branchName: form.branchName,
+          address: form.address,
+          whatsapp: form.whatsapp,
+          role: form.role,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Gagal membuat akun customer baru.');
+      }
+
+      setSuccess(`Akun ${result.user.email} berhasil dibuat untuk tenant ${result.tenant.name}.`);
+      setForm({
+        fullName: '',
+        email: '',
+        password: '',
+        tenantName: '',
+        branchName: 'Cabang Utama',
+        address: '',
+        whatsapp: '',
+        role: 'OWNER',
+      });
+    } catch (submitError: unknown) {
+      const message = submitError instanceof Error ? submitError.message : 'Gagal membuat akun customer baru.';
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -73,8 +147,8 @@ export default function AdminPage() {
         <main className="min-h-screen bg-[#f6f2ea] p-4 md:p-6">
           <div className="mx-auto max-w-2xl rounded-[24px] border border-red-200 bg-red-50 p-6 text-red-900">
             <p className="text-sm uppercase tracking-[0.2em] text-red-700">Akses ditolak</p>
-            <h1 className="mt-3 text-3xl font-semibold">Halaman admin hanya untuk owner / super admin</h1>
-            <p className="mt-2 text-sm">Akun Anda belum punya izin untuk membuka panel administrasi.</p>
+            <h1 className="mt-3 text-3xl font-semibold">Halaman admin hanya untuk super admin</h1>
+            <p className="mt-2 text-sm">Masuk dengan akun yang memiliki role SUPER_ADMIN untuk membuat tenant baru dan akun customer.</p>
           </div>
         </main>
       </>
@@ -85,82 +159,120 @@ export default function AdminPage() {
     <>
       <AppNav />
       <main className="min-h-screen bg-[#f6f2ea] p-4 md:p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-charcoal/60">Super Admin</p>
-              <h1 className="text-3xl md:text-4xl">Tenant & Branch Control</h1>
+              <p className="text-sm uppercase tracking-[0.2em] text-charcoal/60">App Owner</p>
+              <h1 className="text-3xl md:text-4xl">Buat customer baru</h1>
             </div>
-            <button className="rounded-full bg-gold px-5 py-3 font-semibold text-charcoal">+ Invite Admin</button>
+            <span className="rounded-full bg-charcoal px-4 py-2 text-sm font-medium text-white">Super Admin</span>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
-            {[
-              ['Tenant Revenue', `Rp ${cashFlow.endingCash.toLocaleString('id-ID')}`],
-              ['Net Cash', `Rp ${cashFlow.netCash.toLocaleString('id-ID')}`],
-              ['Margin', `${cashFlow.marginPercent.toFixed(1)}%`],
-              ['Branches', '3 aktif'],
-            ].map(([label, value]) => (
-              <div key={label} className="panel rounded-[22px] p-5">
-                <p className="text-sm text-charcoal/60">{label}</p>
-                <p className="mt-3 text-2xl font-semibold">{value}</p>
-              </div>
-            ))}
-          </div>
+          <section className="rounded-[24px] border border-charcoal/10 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-semibold">Onboarding tenant & user</h2>
+            <p className="mt-1 text-sm text-charcoal/60">Form ini membuat akun auth, tenant, branch, dan relasi user ke tenant sekaligus.</p>
 
-          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="panel rounded-[24px] p-5">
-              <div className="mb-5 flex items-center justify-between">
-                <h2 className="text-2xl">Cabang aktif</h2>
-                <span className="rounded-full bg-charcoal/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-charcoal/60">Live</span>
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm font-medium text-charcoal/80 md:col-span-2">
+                  <span>Nama lengkap pemilik</span>
+                  <input
+                    value={form.fullName}
+                    onChange={(e) => setForm((current) => ({ ...current, fullName: e.target.value }))}
+                    placeholder="Nama lengkap"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80">
+                  <span>Email login</span>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))}
+                    placeholder="user@warungku.com"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80">
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm((current) => ({ ...current, password: e.target.value }))}
+                    placeholder="Password minimal 6 karakter"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80 md:col-span-2">
+                  <span>Nama tenant / warung</span>
+                  <input
+                    value={form.tenantName}
+                    onChange={(e) => setForm((current) => ({ ...current, tenantName: e.target.value }))}
+                    placeholder="Contoh: Warung Sari Makmur"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80">
+                  <span>Nama cabang</span>
+                  <input
+                    value={form.branchName}
+                    onChange={(e) => setForm((current) => ({ ...current, branchName: e.target.value }))}
+                    placeholder="Cabang Utama"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80">
+                  <span>WhatsApp</span>
+                  <input
+                    value={form.whatsapp}
+                    onChange={(e) => setForm((current) => ({ ...current, whatsapp: e.target.value }))}
+                    placeholder="08xx"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80 md:col-span-2">
+                  <span>Alamat</span>
+                  <input
+                    value={form.address}
+                    onChange={(e) => setForm((current) => ({ ...current, address: e.target.value }))}
+                    placeholder="Alamat lengkap"
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm font-medium text-charcoal/80 md:col-span-2">
+                  <span>Role</span>
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm((current) => ({ ...current, role: e.target.value }))}
+                    className="w-full rounded-2xl border border-charcoal/10 bg-white px-4 py-3 outline-none transition focus:border-gold"
+                  >
+                    <option value="OWNER">Owner</option>
+                    <option value="SUPER_ADMIN">Super Admin</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="CASHIER">Kasir</option>
+                  </select>
+                </label>
               </div>
 
-              <div className="space-y-3">
-                {branches.map((branch) => (
-                  <div key={branch.name} className="flex items-center justify-between rounded-2xl bg-[#f8f3ed] p-4">
-                    <div>
-                      <p className="font-semibold">{branch.name}</p>
-                      <p className="text-sm text-charcoal/60">Owner: {branch.owner}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">Rp {branch.sales.toLocaleString('id-ID')}</p>
-                      <span className={`text-xs ${branch.status === 'Watching' ? 'text-yellow-700' : 'text-green-700'}`}>
-                        {branch.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p> : null}
+              {success ? <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</p> : null}
 
-            <div className="panel rounded-[24px] p-5">
-              <h2 className="text-2xl">Subscription</h2>
-              <div className="mt-5 space-y-3">
-                {plans.map((plan) => (
-                  <div key={plan.name} className="rounded-2xl border border-charcoal/10 bg-white p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{plan.name}</p>
-                      <span className="rounded-full bg-gold/10 px-2 py-1 text-xs text-charcoal">Popular</span>
-                    </div>
-                    <p className="mt-2 text-xl font-semibold">{plan.price}</p>
-                    <p className="text-sm text-charcoal/60">{plan.seats}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="panel rounded-[24px] p-5">
-            <h2 className="text-2xl">Aktivitas sistem</h2>
-            <div className="mt-5 grid gap-3">
-              {activity.map((item) => (
-                <div key={item} className="flex gap-3 rounded-2xl bg-[#f8f3ed] p-3">
-                  <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-gold" />
-                  <p className="text-sm text-charcoal/80">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full rounded-2xl bg-charcoal px-5 py-3 font-semibold text-white transition hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {saving ? 'Membuat akun customer...' : 'Buat akun customer baru'}
+              </button>
+            </form>
+          </section>
         </div>
       </main>
     </>
